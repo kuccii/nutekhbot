@@ -53,8 +53,8 @@ Set at minimum:
 LLM_API_KEY=sk-...
 LLM_BASE_URL=https://api.openai.com/v1
 CHAT_MODEL=gpt-4.1-mini
-PHONE=2557XXXXXXXX
-OWNER_JIDS=255754000000
+PHONE=2507XXXXXXXX
+OWNER_JIDS=2507XXXXXXXX
 ```
 
 Seed the knowledge base and test an answer **without** WhatsApp:
@@ -64,8 +64,8 @@ npm run seed
 npm run ask -- "How much is the Grow package?"
 ```
 
-Expected: Grow quoted as **TZS 4M – 12M (USD 1,500 – 4,500)**, retainer from
-**TZS 600K/month**, with a question back.
+Expected: Grow quoted as **RWF 2M – 6M (USD 1,500 – 4,500)**, retainer from
+**RWF 350K/month**, with a question back.
 
 ### Optional: embeddings
 
@@ -104,8 +104,8 @@ new code. Deleting `auth/` forces a fresh pairing.
   kept per customer in `data/dm-memory.json`.
 - **Groups** — silent unless directly addressed (name, `@mention`, or a reply to
   one of its messages). `GROUP_ANSWER=0` disables group replies entirely.
-- **Languages** — replies in the customer's language; English and Kiswahili are
-  first-class.
+- **Languages** — replies in the customer's language, with **English as the
+  default**; Kinyarwanda, French and Swahili are mirrored when the customer uses them.
 - **Prices** — only the published ranges. Custom scope goes to a human.
 - **Timelines** — "about 7 days" (Launch) and "about 30 days" (Grow) are typical
   figures, never promises.
@@ -117,6 +117,43 @@ Owner commands (DM only, from an `OWNER_JIDS` number):
 | `/ping` | uptime check |
 | `/stats` | knowledge rows, groups, DM mode |
 | `/leads` | last 5 leads/support requests |
+
+---
+
+## Group prospecting
+
+Off by default (`PROSPECT_ENABLED=0`). When enabled, the bot watches the groups
+it is in for messages that reveal a business need Nutekh could serve (a promo
+that needs a page, a process that could be automated), drafts a short
+first-contact message, and DMs **you** an approval card. Nothing is ever sent to
+a member until you approve it with `/send`, and a daily cap, a per-member
+cooldown and a confidence floor gate every draft and every send.
+
+Once `PROSPECT_ENABLED=1`, **adding the bot to a group is the only action
+required** — the group auto-enrols and prospecting starts. It works even where
+the bot stays silent, because prospecting is independent of group answering
+(`GROUP_ANSWER` / `ANSWER_GROUPS`).
+
+Owner commands (DM only, from an `OWNER_JIDS` number):
+
+| Command | Action |
+|---|---|
+| `/prospects` | list pending candidates |
+| `/groups` | list discovered groups (subject, members, policy, on/off) |
+| `/members <group>` | roster with business guess and status |
+| `/prospect on\|off\|own <group>` | enable, disable, or mark a group `owned` (looser limits) |
+| `/send <id>` | enforce cap + cooldown, send the draft to the member |
+| `/edit <id> <text>` | replace the draft, then send |
+| `/skip <id>` | suppress the candidate (no re-draft during the cooldown) |
+
+Config lives in `.env` (`PROSPECT_GROUPS`, `SCAN_INTERVAL_MIN`,
+`SIGNAL_MIN_CHARS`, `BACKFILL_HOURS`, `OUTREACH_DAILY_CAP`,
+`OUTREACH_COOLDOWN_DAYS`, `OUTREACH_MIN_CONFIDENCE`). Leave `PROSPECT_ENABLED=0`
+unless you intend to prospect; every send is recorded in `data/outreach.jsonl`.
+`PROSPECT_ENABLED=0` stops the automatic pipeline (watching, drafting and
+cards); the owner commands above still work, so you can always act on a card you
+already have — nothing is ever sent to a member without an explicit owner
+command (`/send` or `/edit`).
 
 ---
 
