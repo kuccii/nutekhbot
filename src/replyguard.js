@@ -38,13 +38,16 @@ function guardDMReply(reply, customerText) {
     const keptTokens = []
 
     for (const rawToken of tokens) {
-      const sentence = rawToken.trim()
+      let sentence = rawToken.trim()
       if (!sentence) continue
       if (!wantsNextStep && CANNED_RE.test(sentence)) continue
 
-      const isQuestion = sentence.endsWith('?')
-      if (isQuestion && questionSeen) continue
-      if (isQuestion) questionSeen = true
+      const questionAt = sentence.indexOf('?')
+      if (questionAt !== -1) {
+        if (questionSeen) continue
+        questionSeen = true
+        sentence = sentence.slice(0, questionAt + 1)
+      }
       keptTokens.push(sentence)
     }
 

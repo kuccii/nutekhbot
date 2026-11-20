@@ -55,3 +55,9 @@ test('is idempotent', () => {
     guardDMReply(reply, 'Please check my email.')
   )
 })
+
+test('caps a single token with multiple question marks at one', () => {
+  const out = guardDMReply('What is your timeline??', 'hello there')
+  assert.equal((out.match(/\?/g) || []).length, 1)
+  assert.equal(out, 'What is your timeline?')
+})
