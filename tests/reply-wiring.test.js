@@ -22,6 +22,7 @@ require.cache[llmPath] = {
 }
 
 const { answerDM } = require('../src/brain')
+const { FIRST_CONTACT_GREETING } = require('../src/greeting')
 
 function reset(replies) {
   chatCalls = []
@@ -63,4 +64,45 @@ test('answerDM uses a 200-token short instruction for language repair', async ()
   assert.equal(chatCalls.length, 2)
   assert.equal(chatCalls[1].opts.max_tokens, 200)
   assert.match(chatCalls[1].messages[0].content, /At most 3 short lines and one question/)
+})
+
+test('answerDM uses the fixed warm greeting on first-contact hello', async () => {
+  reset([])
+  const res = await answerDM('hello', [], '', { firstContact: true })
+  assert.equal(res.reply, FIRST_CONTACT_GREETING)
+  assert.equal(chatCalls.length, 0)
+  assert.equal(res.sources, 0)
+  assert.equal(res.lead, null)
+  assert.equal(res.leadSource, null)
+})
+
+test('answerDM does not re-introduce Nutekh for a returning hello', async () => {
+  reset(['Again, what do you need?'])
+  const res = await answerDM('hello', [{ role: 'user', text: 'How much is Grow?' }], '', { firstContact: false })
+  assert.equal(res.reply, 'Again, what do you need?')
+  assert.doesNotMatch(res.reply, /Nutekh's assistant/)
+  assert.equal(chatCalls.length, 1)
+})
+
+test('answerDM uses the normal path when a greeting starts a real enquiry', async () => {
+  reset(['Grow starts at RWF 2M.'])
+  const res = await answerDM('hello, how much is Grow?', [], '', { firstContact: true })
+  assert.match(res.reply, /Grow/)
+  assert.equal(chatCalls.length, 1)
+})
+
+test('answerDM mirrors a localized first-contact greeting via the repair call', async () => {
+  reset(['Bonjour ! Nous sommes une agence à Kigali. Que cherchez-vous ?'])
+  const res = await answerDM('Bonjour', [], '', { firstContact: true })
+  assert.equal(chatCalls.length, 1)
+  assert.equal(chatCalls[0].opts.max_tokens, 200)
+  assert.match(chatCalls[0].messages[0].content, /French/)
+  assert.match(res.reply, /Bonjour/)
+})
+
+test('answerDM falls back to the English greeting if translation fails', async () => {
+  reset([])
+  const res = await answerDM('Bonjour', [], '', { firstContact: true })
+  assert.equal(res.reply, FIRST_CONTACT_GREETING)
+  assert.equal(chatCalls.length, 1)
 })

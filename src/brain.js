@@ -5,6 +5,7 @@ const { cleanReply, stripLeadingIntro } = require('./sanitize')
 const { confidentLang, needsRepair, LANG_NAMES, englishDefault } = require('./lang')
 const { guardDMReply } = require('./replyguard')
 const knowledge = require('./knowledge')
+const { isFirstContactGreeting, greetingLanguage, FIRST_CONTACT_GREETING } = require('./greeting')
 
 const MAX_HISTORY = 10
 const MAX_KNOWLEDGE = 8
@@ -291,6 +292,13 @@ async function ensureLanguage(reply, customerText, opts = {}) {
 }
 
 async function answerDM(text, history = [], notes = '', opts = {}) {
+  if (opts.firstContact === true && isFirstContactGreeting(text)) {
+    let reply = guardDMReply(FIRST_CONTACT_GREETING, text) || DM_FALLBACK
+    reply = await ensureLanguage(reply, text, { ...opts, defaultLang: greetingLanguage(text), minRepairChars: 12, short: true })
+    reply = guardDMReply(reply, text) || DM_FALLBACK
+    return { reply, lead: null, leadSource: null, doc: null, skipped: false, sources: 0 }
+  }
+
   const rows = await retrieve(text, history)
   const messages = [
     { role: 'system', content: systemPrompt('dm', notes, opts) },
