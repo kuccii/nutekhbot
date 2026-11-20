@@ -9,6 +9,14 @@ const LANG_NAMES = { en: 'English', rw: 'Kinyarwanda', fr: 'French', sw: 'Swahil
 const MIN_SCORE = 2
 const MIN_REPAIR_CHARS = 40
 
+// Unmistakable foreign tokens for the English-default repair path (spec §7.2).
+const FOREIGN_TOKENS = [
+  'ndio', 'ndiyo', 'habari', 'jambo', 'asante', 'karibu', 'sana', 'shilingi',
+  'nshaka', 'ndashaka', 'murakoze', 'amakuru', 'yego', 'oya', 'cyane', 'igiciro',
+  'bonjour', 'merci', 'vous', 'nous', 'svp',
+]
+const FOREIGN_TOKEN_RE = new RegExp(`(^|[^a-zà-ÿ])(${FOREIGN_TOKENS.join('|')})([^a-zà-ÿ]|$)`, 'i')
+
 function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
 
 function score(text, markers) {
@@ -37,10 +45,34 @@ function detectLang(text) {
   return confidentLang(text) || 'en'
 }
 
-function needsRepair(expected, replyText) {
+// Keep only claimable letters: URLs, @mentions, digits, emoji and punctuation drop out.
+function readableText(text) {
+  return String(text || '')
+    .toLowerCase()
+    .replace(/(?:https?:\/\/|www\.)\S+/gi, ' ')
+    .replace(/@[\p{L}\p{N}_]+/gu, ' ')
+    .replace(/[^\p{L}]+/gu, ' ')
+    .trim()
+}
+
+function englishDefault(text) {
+  const confident = confidentLang(text)
+  // A confident non-English language is mirrored by the model. Confident English
+  // still goes through the marker checks so clear English defaults to 'en'.
+  if (confident && confident !== 'en') return null
+  const readable = readableText(text)
+  if (!readable) return 'en'
+  const hasForeign = ['fr', 'rw', 'sw'].some((lang) => score(readable, MARKERS[lang]) > 0)
+  if (!hasForeign && score(readable, MARKERS.en) > 0) return 'en'
+  return null
+}
+
+function needsRepair(expected, replyText, opts = {}) {
   const body = String(replyText || '')
-  if (body.length < MIN_REPAIR_CHARS) return false
+  const min = opts.minChars ?? MIN_REPAIR_CHARS
+  if (body.length < min) return false
+  if (expected === 'en' && FOREIGN_TOKEN_RE.test(body)) return true
   return detectLang(body) !== expected
 }
 
-module.exports = { detectLang, confidentLang, needsRepair, LANG_NAMES }
+module.exports = { detectLang, confidentLang, needsRepair, englishDefault, LANG_NAMES }

@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { detectLang, needsRepair, LANG_NAMES, confidentLang } = require('../src/lang')
+const { detectLang, needsRepair, LANG_NAMES, confidentLang, englishDefault } = require('../src/lang')
 
 test('detectLang defaults to English', () => {
   assert.equal(detectLang(''), 'en')
@@ -57,4 +57,25 @@ test('confidentLang positively identifies a substantial English message', () => 
 test('detectLang still defaults to en when nothing is confident', () => {
   assert.equal(detectLang('Combien?'), 'en')
   assert.equal(detectLang(''), 'en')
+})
+
+test('englishDefault treats emoji-only and clearly English text as English', () => {
+  assert.equal(englishDefault('👍🏽'), 'en')
+  assert.equal(englishDefault('Please check my email the soonest you can.'), 'en')
+})
+
+test('englishDefault leaves ambiguous non-English text to the model', () => {
+  assert.equal(englishDefault('Muraho'), null)
+  assert.equal(englishDefault('Merci?'), null)
+  assert.equal(englishDefault('Muraho, nshaka website'), null)
+})
+
+test('needsRepair honours a lower minChars for short DM replies', () => {
+  assert.equal(needsRepair('en', 'Ndio, naelewa.', { minChars: 12 }), true)
+  assert.equal(needsRepair('en', 'Ndio, naelewa.'), false)
+})
+
+test('needsRepair applies the 40-character gate before the foreign-token rule', () => {
+  assert.equal(needsRepair('en', 'Je vous prie de patienter.'), false)
+  assert.equal(needsRepair('en', 'Je vous prie de patienter.', { minChars: 12 }), true)
 })
