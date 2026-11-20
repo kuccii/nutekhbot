@@ -64,6 +64,10 @@ test('englishDefault treats emoji-only and clearly English text as English', () 
   assert.equal(englishDefault('Please check my email the soonest you can.'), 'en')
 })
 
+test('englishDefault keeps confident English with a stray foreign marker', () => {
+  assert.equal(englishDefault('Please merci the package today'), 'en')
+})
+
 test('englishDefault leaves ambiguous non-English text to the model', () => {
   assert.equal(englishDefault('Muraho'), null)
   assert.equal(englishDefault('Merci?'), null)

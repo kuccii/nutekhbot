@@ -57,9 +57,9 @@ function readableText(text) {
 
 function englishDefault(text) {
   const confident = confidentLang(text)
-  // A confident non-English language is mirrored by the model. Confident English
-  // still goes through the marker checks so clear English defaults to 'en'.
-  if (confident && confident !== 'en') return null
+  // Confident English always defaults to 'en', even with a stray foreign marker;
+  // confident non-English is mirrored by the model.
+  if (confident) return confident === 'en' ? 'en' : null
   const readable = readableText(text)
   if (!readable) return 'en'
   const hasForeign = ['fr', 'rw', 'sw'].some((lang) => score(readable, MARKERS[lang]) > 0)
