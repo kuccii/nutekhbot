@@ -6,7 +6,7 @@ process.env.DATA_DIR = tmpDataDir()
 process.env.LLM_API_KEY = 'test'
 process.env.EMBED_URL = 'http://127.0.0.1:1'
 
-const { parseMarkers, shouldExtract, normalizeLeadCandidate, extractLead, ensureLanguage } = require('../src/brain')
+const { parseMarkers, shouldExtract, normalizeLeadCandidate, extractLead, ensureLanguage, systemPrompt } = require('../src/brain')
 
 test('parses a lead marker and strips it from the reply', () => {
   const raw = 'Grow starts at RWF 4M. Shall I book the free audit?\n[[LEAD: {"type":"sales","business":"Shop","need":"POS","budget":"4-12M"}]]'
@@ -187,4 +187,40 @@ test('ensureLanguage repairs a Swahili reply to a short English message', async 
   })
   assert.match(out, /Grow starts at RWF 2M/)
   assert.match(used[0].content, /English/)
+})
+
+test('DM prompt carries the short precise reply rules', () => {
+  const dm = systemPrompt('dm', '')
+  assert.match(dm, /DM REPLY RULES/)
+  assert.match(dm, /Answer the customer's exact message/)
+  assert.match(dm, /Never infer a business/)
+  assert.match(dm, /link, CV, email/)
+  assert.match(dm, /free 30-minute audit.*only when/i)
+})
+
+test('group prompt does not carry the DM reply rules', () => {
+  assert.doesNotMatch(systemPrompt('group', ''), /DM REPLY RULES/)
+})
+
+test('ensureLanguage keeps the group repair defaults when DM options are absent', async () => {
+  let usedOpts = null
+  let usedContent = null
+  const out = await ensureLanguage(SW_REPLY, 'How much is Grow?', {
+    chat: async (messages, opts) => {
+      usedOpts = opts
+      usedContent = messages[0].content
+      return 'Grow starts at RWF 2M. Shall I book the free audit?'
+    },
+  })
+  assert.match(out, /Grow starts at RWF 2M/)
+  assert.equal(usedOpts.max_tokens, 500)
+  assert.match(usedContent, /Keep the meaning and the short WhatsApp style/)
+  assert.doesNotMatch(usedContent, /At most 3 short lines/)
+
+  let called = false
+  const short = await ensureLanguage('Ndio, naelewa.', 'How much is Grow?', {
+    chat: async () => { called = true; return 'x' },
+  })
+  assert.equal(short, 'Ndio, naelewa.')
+  assert.equal(called, false, 'the default 40-character repair gate must still apply')
 })

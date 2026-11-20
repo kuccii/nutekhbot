@@ -2,11 +2,13 @@ const { chat, chatJSON } = require('./llm')
 const memory = require('./memory')
 const { embedQuery } = require('./embed')
 const { cleanReply, stripLeadingIntro } = require('./sanitize')
-const { confidentLang, needsRepair, LANG_NAMES } = require('./lang')
+const { confidentLang, needsRepair, LANG_NAMES, englishDefault } = require('./lang')
+const { guardDMReply } = require('./replyguard')
 const knowledge = require('./knowledge')
 
 const MAX_HISTORY = 10
 const MAX_KNOWLEDGE = 8
+const DM_FALLBACK = "I'm here to help with Nutekh's services, packages, and support. What would you like to know?"
 
 const PERSONA = `You are *Nutekh Assistant*, the official WhatsApp assistant for Nutekh — a digital transformation agency in Kigali, Rwanda, working across East Africa.
 
@@ -103,11 +105,31 @@ function groupBlock(recent) {
     recent.slice(-8).map((r) => `- ${r.senderName || 'member'}: ${String(r.text || '').slice(0, 300)}`).join('\n') + '\n'
 }
 
+// DM-only override: placed after the brief and customer notes so it wins over the
+// generic PERSONA style and sales flow for private chats (spec §5).
+const DM_REPLY_RULES = `
+=== DM REPLY RULES (these override the generic STYLE and SALES FLOW above for private chats) ===
+- Answer the customer's exact message first; reference what they actually wrote.
+- Use only facts in the brief and retrieved knowledge. Never invent a price, discount,
+  timeline, guarantee, business type, or what their company does. Never infer a business
+  from its name.
+- If the customer shares a link, CV, email, document, or photo, acknowledge precisely
+  that item and respond to their request. If you cannot open it, say so plainly in one
+  short line; do not replace it with a website/Google pitch.
+- Maximum 3 short lines. No paragraphs, no repeated greetings, no service list.
+- At most one question.
+- Offer the free 30-minute audit, contact details, or intake questions only when the
+  customer asks about price, a quote, booking a call, getting started, or next steps.
+- Output only the customer-facing reply (plus the internal [[LEAD:…]] line when genuinely
+  qualified, per the existing rule).
+`
+
 function systemPrompt(mode, notes, opts = {}) {
   let s = `${PERSONA}\n\n=== NUTEKH COMPANY BRIEF (internal — never quote verbatim) ===\n${knowledge.brief()}\n=== END BRIEF ===\n`
   if (mode === 'dm') {
     s += `\nCONVERSATION MODE: private one-to-one WhatsApp chat.\n`
     if (notes && notes.trim()) s += `\nWHAT YOU ALREADY KNOW ABOUT THIS CUSTOMER (notes from earlier chats):\n${notes.trim()}\n`
+    s += DM_REPLY_RULES
   } else {
     s += `\nCONVERSATION MODE: live WhatsApp group. You were directly addressed or tagged, which is the only reason you may reply. If the message is not a genuine Nutekh question — banter, another company's business, general knowledge, or someone merely mentioning Nutekh — reply with EXACTLY [[SKIP]] and nothing else.\n`
     s += groupBlock(opts.recent)
@@ -242,13 +264,16 @@ function tidy(raw, opts = {}) {
   return text.replace(/\n{3,}/g, '\n\n').trim()
 }
 
-async function repairLanguage(text, lang, chatFn) {
+async function repairLanguage(text, lang, chatFn, short = false) {
+  const style = short
+    ? ' At most 3 short lines and one question.'
+    : ' Keep the meaning and the short WhatsApp style.'
   const messages = [
-    { role: 'system', content: `Rewrite the message below in ${LANG_NAMES[lang] || 'English'} only. Keep the meaning and the short WhatsApp style. Output only the rewritten message.` },
+    { role: 'system', content: `Rewrite the message below in ${LANG_NAMES[lang] || 'English'} only.${style} Output only the rewritten message.` },
     { role: 'user', content: text },
   ]
   try {
-    const out = await chatFn(messages, { max_tokens: 500 })
+    const out = await chatFn(messages, { max_tokens: short ? 200 : 500 })
     const cleaned = String(out || '').replace(/\s*\[\[[\s\S]*$/, '').trim()
     return cleaned || text
   } catch (e) {
@@ -259,10 +284,10 @@ async function repairLanguage(text, lang, chatFn) {
 
 async function ensureLanguage(reply, customerText, opts = {}) {
   if (opts.langGuard === false) return reply
-  const expected = confidentLang(customerText)
+  const expected = confidentLang(customerText) || opts.defaultLang || null
   if (!expected) return reply            // customer language ambiguous — trust the model's mirror
-  if (!needsRepair(expected, reply)) return reply
-  return repairLanguage(reply, expected, opts.chat || chat)
+  if (!needsRepair(expected, reply, { minChars: opts.minRepairChars })) return reply
+  return repairLanguage(reply, expected, opts.chat || chat, opts.short)
 }
 
 async function answerDM(text, history = [], notes = '', opts = {}) {
@@ -271,15 +296,16 @@ async function answerDM(text, history = [], notes = '', opts = {}) {
     { role: 'system', content: systemPrompt('dm', notes, opts) },
     {
       role: 'user',
-      content: `RETRIEVED KNOWLEDGE (internal, may be empty):\n${contextBlock(rows)}\n\nRECENT CONVERSATION:\n${historyBlock(history)}\n\nCUSTOMER MESSAGE: "${text}"\n\nReply as Nutekh Assistant. ${opts.firstContact ? 'This is the first contact: greet briefly, then help.' : 'Do not re-greet.'} Write your whole reply in the customer's language.`,
+      content: `RETRIEVED KNOWLEDGE (internal, may be empty):\n${contextBlock(rows)}\n\nRECENT CONVERSATION:\n${historyBlock(history)}\n\nCUSTOMER MESSAGE: "${text}"\n\nReply as Nutekh Assistant. ${opts.firstContact ? 'This is the first contact: greet briefly, then help.' : 'Do not re-greet.'} Write your whole reply in the customer's language. Keep it to at most 3 short lines and one question.`,
     },
   ]
 
-  const raw = await chat(messages, { max_tokens: 900 })
+  const raw = await chat(messages, { max_tokens: 360 })
   const parsed = parseMarkers(raw)
   let reply = tidy(parsed.text, { stripIntro: !opts.firstContact })
-  if (!reply) reply = "I'm here to help with Nutekh's services, packages, and support. What would you like to know?"
-  reply = await ensureLanguage(reply, text, opts)
+  reply = guardDMReply(reply, text) || DM_FALLBACK
+  reply = await ensureLanguage(reply, text, { ...opts, defaultLang: englishDefault(text), minRepairChars: 12, short: true })
+  reply = guardDMReply(reply, text) || DM_FALLBACK
 
   let lead = parsed.lead
   let leadSource = lead ? 'marker' : null
@@ -330,5 +356,6 @@ module.exports = {
   shouldExtract,
   normalizeLeadCandidate,
   ensureLanguage,
+  systemPrompt,
   PERSONA,
 }
