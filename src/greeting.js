@@ -17,7 +17,7 @@ function isFirstContactGreeting(text) {
 }
 
 function greetingLanguage(text) {
-  const greeting = normalize(text)
+  const greeting = normalize(text).replace(/\s+there$/, '')
   if (FR_GREETINGS.has(greeting)) return 'fr'
   if (RW_GREETINGS.has(greeting)) return 'rw'
   if (SW_GREETINGS.has(greeting)) return 'sw'

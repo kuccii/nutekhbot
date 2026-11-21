@@ -20,6 +20,8 @@ test('greetingLanguage maps localized greetings and defaults to English', () => 
   assert.equal(greetingLanguage('muraho'), 'rw')
   assert.equal(greetingLanguage('habari'), 'sw')
   assert.equal(greetingLanguage('jambo'), 'sw')
+  assert.equal(greetingLanguage('muraho there'), 'rw')
+  assert.equal(greetingLanguage('bonjour there'), 'fr')
   assert.equal(greetingLanguage('hello'), 'en')
   assert.equal(greetingLanguage('good morning'), 'en')
 })
