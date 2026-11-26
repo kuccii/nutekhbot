@@ -67,6 +67,39 @@ function englishDefault(text) {
   return null
 }
 
+// Explicit requests beat heuristics. The named-target entry stays first so a
+// message that disclaims English and names a target resolves to the target.
+const EXPLICIT_PHRASES = [
+  { re: /\b(?:please\s+)?(?:reply|speak|write)\s+(?:in\s+)?(kinyarwanda|french|swahili)\b/i, fallback: 'rw' },
+  { re: /\bi\s+(?:don'?t|do not)\s+(?:understand|speak)\s+english\b/i, fallback: 'rw' },
+  { re: /\bno\s+english\s+please\b/i, fallback: 'rw' },
+  { re: /\b(?:simenya|sindamenya|ntamenya)\s+icyongereza\b/i, fallback: 'rw' },
+  { re: /\bmbwira\s+mu\s+kinyarwanda\b/i, fallback: 'rw' },
+  { re: /\bje\s+ne\s+comprends\s+pas\s+(?:l')?anglais\b/i, fallback: 'fr' },
+  { re: /\bje\s+ne\s+parle\s+pas\s+anglais\b/i, fallback: 'fr' },
+  { re: /\brépondez\s+en\s+français\b/i, fallback: 'fr' },
+  { re: /\b(?:sielewi|sijui)\s+kiingereza\b/i, fallback: 'sw' },
+  { re: /\bsina\s+uelewa\s+wa\s+kiingereza\b/i, fallback: 'sw' },
+  { re: /\bjibu\s+kwa\s+kiswahili\b/i, fallback: 'sw' },
+]
+
+const NAMED_TARGETS = { kinyarwanda: 'rw', french: 'fr', swahili: 'sw' }
+const REPLY_LANGS = ['en', 'rw', 'fr', 'sw']
+
+function replyLanguage(customerText, opts = {}) {
+  const text = String(customerText || '')
+  for (const entry of EXPLICIT_PHRASES) {
+    const match = entry.re.exec(text)
+    if (!match) continue
+    const target = NAMED_TARGETS[match[1]?.toLowerCase()]
+    return target || entry.fallback
+  }
+  const confident = confidentLang(customerText)
+  if (confident) return confident
+  const hint = opts.defaultLang
+  return REPLY_LANGS.includes(hint) ? hint : 'en'
+}
+
 function needsRepair(expected, replyText, opts = {}) {
   const body = String(replyText || '')
   const min = opts.minChars ?? MIN_REPAIR_CHARS
@@ -75,4 +108,4 @@ function needsRepair(expected, replyText, opts = {}) {
   return detectLang(body) !== expected
 }
 
-module.exports = { detectLang, confidentLang, needsRepair, englishDefault, LANG_NAMES }
+module.exports = { detectLang, confidentLang, needsRepair, englishDefault, LANG_NAMES, replyLanguage }

@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { detectLang, needsRepair, LANG_NAMES, confidentLang, englishDefault } = require('../src/lang')
+const { detectLang, needsRepair, LANG_NAMES, confidentLang, englishDefault, replyLanguage } = require('../src/lang')
 
 test('detectLang defaults to English', () => {
   assert.equal(detectLang(''), 'en')
@@ -82,4 +82,35 @@ test('needsRepair honours a lower minChars for short DM replies', () => {
 test('needsRepair applies the 40-character gate before the foreign-token rule', () => {
   assert.equal(needsRepair('en', 'Je vous prie de patienter.'), false)
   assert.equal(needsRepair('en', 'Je vous prie de patienter.', { minChars: 12 }), true)
+})
+
+test('replyLanguage honours explicit "does not understand English" phrases', () => {
+  assert.equal(replyLanguage("I don't understand English"), 'rw')
+  assert.equal(replyLanguage('I do not understand english'), 'rw')
+  assert.equal(replyLanguage('no English please'), 'rw')
+  assert.equal(replyLanguage('simenya icyongereza'), 'rw')
+  assert.equal(replyLanguage('je ne comprends pas anglais'), 'fr')
+  assert.equal(replyLanguage('je ne parle pas anglais'), 'fr')
+  assert.equal(replyLanguage('sielewi Kiingereza'), 'sw')
+  assert.equal(replyLanguage('mbwira mu kinyarwanda'), 'rw')
+})
+
+test('replyLanguage prefers a named target over the phrase language', () => {
+  assert.equal(replyLanguage("I don't understand English, reply in French"), 'fr')
+  assert.equal(replyLanguage('Please speak in Swahili'), 'sw')
+  assert.equal(replyLanguage('jibu kwa kiswahili'), 'sw')
+})
+
+test('replyLanguage uses confident detection before the call-site hint', () => {
+  assert.equal(replyLanguage('Muraho, igiciro cya Grow ni angahe? Murakoze'), 'rw')
+  assert.equal(replyLanguage('Habari, bei ya Grow ni ngapi? Asante sana'), 'sw')
+  assert.equal(replyLanguage('How much does the Grow package cost?'), 'en')
+  assert.equal(replyLanguage('Muraho, ndashaka website', { defaultLang: 'en' }), 'rw')
+})
+
+test('replyLanguage falls back to the hint, then to English', () => {
+  assert.equal(replyLanguage('Bonjour', { defaultLang: 'fr' }), 'fr')
+  assert.equal(replyLanguage('hello', { defaultLang: 'de' }), 'en')
+  assert.equal(replyLanguage('Restaurant'), 'en')
+  assert.equal(replyLanguage('👍🏽'), 'en')
 })
