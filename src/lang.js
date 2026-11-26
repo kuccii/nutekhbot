@@ -5,6 +5,15 @@ const MARKERS = {
   sw: ['habari', 'jambo', 'mambo', 'karibu', 'asante', 'ndiyo', 'hapana', 'naomba', 'bei', 'gani', 'ngapi', 'vipi', 'nzuri', 'sana', 'ninataka', 'tunataka', 'pesa', 'shilingi'],
 }
 
+// Reply-side markers are broader than the customer-side MARKERS so a reply that
+// silently switches language is caught even when detectLang still says 'en'.
+const REPLY_MARKERS = {
+  en: [...MARKERS.en],
+  fr: [...MARKERS.fr],
+  sw: [...MARKERS.sw],
+  rw: [...MARKERS.rw, 'murakaza', 'neza', 'nshobora', 'kugufasha', 'nkeneye', 'dufite', 'dutanga', 'dukora', 'wifuza', 'wifashisha', 'murashobora', 'mwiteguye', 'dushobora', 'gahunda', 'igihe', 'nta', 'amakampani', 'ikoranabuhanga', 'uburyo', 'kwishyura'],
+}
+
 const LANG_NAMES = { en: 'English', rw: 'Kinyarwanda', fr: 'French', sw: 'Swahili' }
 const MIN_SCORE = 2
 const MIN_REPAIR_CHARS = 40
@@ -105,6 +114,11 @@ function needsRepair(expected, replyText, opts = {}) {
   const min = opts.minChars ?? MIN_REPAIR_CHARS
   if (body.length < min) return false
   if (expected === 'en' && FOREIGN_TOKEN_RE.test(body)) return true
+  if (expected === 'en' && ['rw', 'fr', 'sw'].some((lang) => score(body, REPLY_MARKERS[lang]) >= 2)) return true
+  if (expected !== 'en') {
+    if (score(body, REPLY_MARKERS.en) >= 2) return true
+    if (['rw', 'fr', 'sw'].some((lang) => lang !== expected && score(body, REPLY_MARKERS[lang]) >= 2)) return true
+  }
   return detectLang(body) !== expected
 }
 

@@ -114,3 +114,31 @@ test('replyLanguage falls back to the hint, then to English', () => {
   assert.equal(replyLanguage('Restaurant'), 'en')
   assert.equal(replyLanguage('👍🏽'), 'en')
 })
+
+test('needsRepair flags the live Kinyarwanda "Restaurant" reply', () => {
+  const rw = 'Turi kumwe! Dufite igisubizo cyiza ku ruhande rwa restaurant yawe. Ufite ibikoresho iki gihe wifashisha cyangwa ukaba ufite gahunda yo gukoresha ibindi?'
+  assert.ok(rw.length >= 40)
+  assert.equal(needsRepair('en', rw), true)
+})
+
+test('needsRepair flags the live Mira\'s Pizza Kinyarwanda reply', () => {
+  const rw = "Nta kibazo! Iyo mwiteguye, murashobora kutwandikira. Ni gute dushobora kubafasha mu gihe mugitegura?"
+  assert.ok(rw.length >= 40)
+  assert.equal(needsRepair('en', rw), true)
+})
+
+test('needsRepair flags a foreign tail even when detectLang scores the reply as English', () => {
+  const mixed = 'We can help with your website. Muraho, ufite ikibazo?'
+  assert.equal(needsRepair('en', mixed, { minChars: 12 }), true)
+})
+
+test('needsRepair ignores neutral brand and product names', () => {
+  const rw = 'Murakoze! Nshobora kugufasha ku serivisi za Nutekh. WhatsApp, AI, Grow, ImaliCloud, Hresa, VUKA, CRM na websites birahari. Ufite ikibazo runaka?'
+  assert.equal(needsRepair('rw', rw), false)
+  assert.equal(needsRepair('en', 'We use WhatsApp, AI and Grow with ImaliCloud, Hresa, VUKA, CRM and websites.'), false)
+})
+
+test('needsRepair flags an English reply to a non-English expectation', () => {
+  assert.equal(needsRepair('rw', 'We can help with a clear, fast website. What type of business do you run?'), true)
+  assert.equal(needsRepair('fr', 'Habari, bei ya Grow ni ngapi? Asante sana kwa swali lako zuri.'), true)
+})
