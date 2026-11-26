@@ -21,7 +21,7 @@ require.cache[llmPath] = {
   },
 }
 
-const { answerDM } = require('../src/brain')
+const { answerDM, answerAuto } = require('../src/brain')
 const { FIRST_CONTACT_GREETING } = require('../src/greeting')
 
 function reset(replies) {
@@ -105,4 +105,57 @@ test('answerDM falls back to the French fallback copy if translation fails', asy
   const res = await answerDM('Bonjour', [], '', { firstContact: true })
   assert.equal(res.reply, 'Je peux vous aider avec les services de Nutekh. Que souhaitez-vous savoir ?')
   assert.equal(chatCalls.length, 1)
+})
+
+test('answerDM repairs the live "Restaurant" failure to English', async () => {
+  reset([
+    'Turi kumwe! Dufite igisubizo cyiza ku ruhande rwa restaurant yawe. Ufite ibikoresho iki gihe wifashisha cyangwa ukaba ufite gahunda yo gukoresha ibindi?',
+    'We can build a clear website for your restaurant. What tools do you use now?',
+  ])
+  const res = await answerDM('Restaurant', [], '')
+  assert.match(res.reply, /website/)
+  assert.doesNotMatch(res.reply, /Turi kumwe|Dufite|Ufite/)
+  assert.equal(chatCalls.length, 2)
+  assert.match(chatCalls[1].messages[0].content, /English/)
+})
+
+test('answerDM repairs the live "What do you guys do" failure to English', async () => {
+  reset([
+    'Dukora ibikorwa byinshi bya digitale. Dutanga websites na WhatsApp automation. Ufite ikibazo runaka?',
+    'We build websites and WhatsApp automation. What do you need help with?',
+  ])
+  const res = await answerDM('What do you guys do', [], '')
+  assert.match(res.reply, /websites and WhatsApp automation/)
+  assert.doesNotMatch(res.reply, /Dukora|Dutanga|Ufite/)
+  assert.match(chatCalls[1].messages[0].content, /English/)
+})
+
+test('answerDM replies in Kinyarwanda when the customer does not understand English', async () => {
+  reset(['I can help with Nutekh services and answer your questions today.', 'Nshobora kugufasha ku serivisi za Nutekh. Ufite ikibazo runaka?'])
+  const res = await answerDM("I don't understand English", [], '')
+  assert.match(res.reply, /Nshobora kugufasha/)
+  assert.match(chatCalls[1].messages[0].content, /Kinyarwanda/)
+})
+
+test('answerDM honours a named target in an explicit request', async () => {
+  reset(['I can help with that today.', 'Je peux vous aider avec les services de Nutekh. Que souhaitez-vous savoir ?'])
+  const res = await answerDM("I don't understand English, reply in French", [], '')
+  assert.match(res.reply, /Je peux vous aider/)
+  assert.match(chatCalls[1].messages[0].content, /French/)
+})
+
+test('answerAuto repairs a mixed group reply but keeps [[SKIP]] skipped', async () => {
+  reset([
+    'Turi kumwe! Dufite igisubizo cyiza ku ruhande rwa restaurant yawe. Ufite ibikoresho iki gihe wifashisha cyangwa ukaba ufite gahunda yo gukoresha ibindi?',
+    'We can build a clear website for your restaurant. What tools do you use now?',
+  ])
+  const res = await answerAuto('Restaurant', [], [], { addressed: true })
+  assert.equal(res.skipped, false)
+  assert.match(res.reply, /website/)
+  assert.match(chatCalls[1].messages[0].content, /English/)
+
+  reset(['[[SKIP]]'])
+  const skipped = await answerAuto('Restaurant', [], [], { addressed: true })
+  assert.equal(skipped.skipped, true)
+  assert.equal(skipped.reply, '')
 })
