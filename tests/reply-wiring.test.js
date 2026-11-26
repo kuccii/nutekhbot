@@ -100,9 +100,9 @@ test('answerDM mirrors a localized first-contact greeting via the repair call', 
   assert.match(res.reply, /Bonjour/)
 })
 
-test('answerDM falls back to the English greeting if translation fails', async () => {
+test('answerDM falls back to the French greeting if translation fails', async () => {
   reset([])
   const res = await answerDM('Bonjour', [], '', { firstContact: true })
-  assert.equal(res.reply, FIRST_CONTACT_GREETING)
+  assert.equal(res.reply, 'Je peux vous aider avec les services de Nutekh. Que souhaitez-vous savoir ?')
   assert.equal(chatCalls.length, 1)
 })
