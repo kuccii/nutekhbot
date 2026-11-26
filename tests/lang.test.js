@@ -101,6 +101,32 @@ test('replyLanguage prefers a named target over the phrase language', () => {
   assert.equal(replyLanguage('jibu kwa kiswahili'), 'sw')
 })
 
+test('replyLanguage resolves a mixed English/French request to the named French target', () => {
+  assert.equal(replyLanguage("I don't understand English, répondez en français"), 'fr')
+})
+
+test('replyLanguage resolves a mixed English/Swahili request to the named Swahili target', () => {
+  assert.equal(replyLanguage("I don't understand English, jibu kwa kiswahili"), 'sw')
+})
+
+test('replyLanguage resolves a standalone French named-target phrase', () => {
+  assert.equal(replyLanguage('répondez en français'), 'fr')
+})
+
+test('replyLanguage resolves a standalone Swahili named-target phrase', () => {
+  assert.equal(replyLanguage('jibu kwa kiswahili'), 'sw')
+})
+
+test('replyLanguage resolves the reply|speak|write named-target forms', () => {
+  assert.equal(replyLanguage('Please reply in Kinyarwanda'), 'rw')
+  assert.equal(replyLanguage('write in French'), 'fr')
+  assert.equal(replyLanguage('Please speak in Swahili'), 'sw')
+})
+
+test('replyLanguage honours a typographic apostrophe in an English disclaimer', () => {
+  assert.equal(replyLanguage('I don’t understand English'), 'rw')
+})
+
 test('replyLanguage uses confident detection before the call-site hint', () => {
   assert.equal(replyLanguage('Muraho, igiciro cya Grow ni angahe? Murakoze'), 'rw')
   assert.equal(replyLanguage('Habari, bei ya Grow ni ngapi? Asante sana'), 'sw')

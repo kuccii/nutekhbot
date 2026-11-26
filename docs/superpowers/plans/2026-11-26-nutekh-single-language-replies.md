@@ -88,21 +88,21 @@ Expected: the four new tests fail with `TypeError: replyLanguage is not a functi
 
 - [ ] **Step 3: Implement `replyLanguage` in `src/lang.js`**
 
-Add a case-insensitive `EXPLICIT_PHRASES` array of `{ re, fallback }` entries with exactly these patterns (word boundaries, `\s+` between words). `fallback` is the language used when no named target is captured; for English phrases it is `rw`, because "I don't understand English" with no named target defaults to Kinyarwanda. **The named-target entry must be first in the array**, so a message that both disclaims English and names a target resolves to the target:
+Add a case-insensitive `EXPLICIT_PHRASES` array of `{ re, fallback }` entries with exactly these patterns (word boundaries, `\s+` between words). `fallback` is the language used when no named target is captured; for English phrases it is `rw`, because "I don't understand English" with no named target defaults to Kinyarwanda. Phrase order does not decide the result: scan **all** matching entries for a named target first, because the explicit named target wins even when an earlier phrase family (e.g. the English disclaimer) matched with a different fallback. Words meaning "English" (`icyongereza`, `anglais`, `kiingereza`, `english`) are never capture targets.
 
 - `/\b(?:please\s+)?(?:reply|speak|write)\s+(?:in\s+)?(kinyarwanda|french|swahili)\b/i` → `fallback: 'rw'`, capture group 1 is a named target.
 - `/\bi\s+(?:don'?t|do not)\s+(?:understand|speak)\s+english\b/i` → `fallback: 'rw'`
 - `/\bno\s+english\s+please\b/i` → `fallback: 'rw'`
 - `/\b(?:simenya|sindamenya|ntamenya)\s+icyongereza\b/i` → `fallback: 'rw'`
-- `/\bmbwira\s+mu\s+kinyarwanda\b/i` → `fallback: 'rw'`
+- `/\bmbwira\s+mu\s+(kinyarwanda)\b/i` → `fallback: 'rw'`, capture group 1 is a named target.
 - `/\bje\s+ne\s+comprends\s+pas\s+(?:l')?anglais\b/i` → `fallback: 'fr'`
 - `/\bje\s+ne\s+parle\s+pas\s+anglais\b/i` → `fallback: 'fr'`
-- `/\brépondez\s+en\s+français\b/i` → `fallback: 'fr'`
+- `/\brépondez\s+en\s+(français)\b/i` → `fallback: 'fr'`, capture group 1 is a named target.
 - `/\b(?:sielewi|sijui)\s+kiingereza\b/i` → `fallback: 'sw'`
 - `/\bsina\s+uelewa\s+wa\s+kiingereza\b/i` → `fallback: 'sw'`
-- `/\bjibu\s+kwa\s+kiswahili\b/i` → `fallback: 'sw'`
+- `/\bjibu\s+kwa\s+(kiswahili)\b/i` → `fallback: 'sw'`, capture group 1 is a named target.
 
-Implement `replyLanguage(customerText, opts = {})` as: (1) for each phrase entry, test against `String(customerText || '')`; on a match, return the named target from capture group 1 when it is `kinyarwanda` → `rw`, `french` → `fr`, `swahili` → `sw`, otherwise return `entry.fallback`; (2) return `confidentLang(customerText)` when non-null; (3) return `opts.defaultLang` when it is one of `en|rw|fr|sw`; (4) return `'en'`. Do not modify `detectLang`, `confidentLang`, `englishDefault`, `MARKERS` or the existing exports. Add `replyLanguage` to `module.exports`.
+Implement `replyLanguage(customerText, opts = {})` as: (1) normalize U+2019 to ASCII `'` in a local `text` used for explicit-phrase matching, so mobile smart quotes match the ASCII phrases; (2) scan every phrase entry against `text`; return the first recognized named target from capture group 1 across all matches (`kinyarwanda` → `rw`, `french`/`français` → `fr`, `swahili`/`kiswahili` → `sw`) before returning any entry fallback; (3) if no named target exists, return the first matching entry's `fallback`; (4) return `confidentLang(customerText)` when non-null; (5) return `opts.defaultLang` when it is one of `en|rw|fr|sw`; (6) return `'en'`. Do not modify `detectLang`, `confidentLang`, `englishDefault`, `MARKERS` or the existing exports. Add `replyLanguage` to `module.exports`.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 

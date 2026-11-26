@@ -76,33 +76,37 @@ function englishDefault(text) {
   return null
 }
 
-// Explicit requests beat heuristics. The named-target entry stays first so a
-// message that disclaims English and names a target resolves to the target.
+// Explicit requests beat heuristics. A named target in any matching phrase
+// wins over the fallback language of an earlier, target-free phrase family.
 const EXPLICIT_PHRASES = [
   { re: /\b(?:please\s+)?(?:reply|speak|write)\s+(?:in\s+)?(kinyarwanda|french|swahili)\b/i, fallback: 'rw' },
   { re: /\bi\s+(?:don'?t|do not)\s+(?:understand|speak)\s+english\b/i, fallback: 'rw' },
   { re: /\bno\s+english\s+please\b/i, fallback: 'rw' },
   { re: /\b(?:simenya|sindamenya|ntamenya)\s+icyongereza\b/i, fallback: 'rw' },
-  { re: /\bmbwira\s+mu\s+kinyarwanda\b/i, fallback: 'rw' },
+  { re: /\bmbwira\s+mu\s+(kinyarwanda)\b/i, fallback: 'rw' },
   { re: /\bje\s+ne\s+comprends\s+pas\s+(?:l')?anglais\b/i, fallback: 'fr' },
   { re: /\bje\s+ne\s+parle\s+pas\s+anglais\b/i, fallback: 'fr' },
-  { re: /\brépondez\s+en\s+français\b/i, fallback: 'fr' },
+  { re: /\brépondez\s+en\s+(français)\b/i, fallback: 'fr' },
   { re: /\b(?:sielewi|sijui)\s+kiingereza\b/i, fallback: 'sw' },
   { re: /\bsina\s+uelewa\s+wa\s+kiingereza\b/i, fallback: 'sw' },
-  { re: /\bjibu\s+kwa\s+kiswahili\b/i, fallback: 'sw' },
+  { re: /\bjibu\s+kwa\s+(kiswahili)\b/i, fallback: 'sw' },
 ]
 
-const NAMED_TARGETS = { kinyarwanda: 'rw', french: 'fr', swahili: 'sw' }
+const NAMED_TARGETS = { kinyarwanda: 'rw', french: 'fr', français: 'fr', swahili: 'sw', kiswahili: 'sw' }
 const REPLY_LANGS = ['en', 'rw', 'fr', 'sw']
 
 function replyLanguage(customerText, opts = {}) {
-  const text = String(customerText || '')
+  // Smart quotes are common on phones; the explicit phrases use ASCII apostrophes.
+  const text = String(customerText || '').replace(/\u2019/g, "'")
+  let fallback = null
   for (const entry of EXPLICIT_PHRASES) {
     const match = entry.re.exec(text)
     if (!match) continue
     const target = NAMED_TARGETS[match[1]?.toLowerCase()]
-    return target || entry.fallback
+    if (target) return target
+    if (fallback === null) fallback = entry.fallback
   }
+  if (fallback !== null) return fallback
   const confident = confidentLang(customerText)
   if (confident) return confident
   const hint = opts.defaultLang
