@@ -206,10 +206,10 @@ git commit -m "feat(language): make the reply guard symmetric across languages"
 
 - [ ] **Step 1: Update the two now-stale tests and add two new ones in `tests/brain.test.js`**
 
-Replace the assertion in `'ensureLanguage keeps the original reply when the repair call fails'` (line 155) so the mixed reply is not returned:
+Replace the assertion in `'ensureLanguage keeps the original reply when the repair call fails'` (line 155) so the mixed reply is not returned. Rename the test to reflect the new fallback contract:
 
 ```js
-test('ensureLanguage keeps the original reply when the repair call fails', async () => {
+test('ensureLanguage falls back to English when the repair call fails', async () => {
   const out = await ensureLanguage(SW_REPLY, 'How much is Grow?', {
     chat: async () => { throw new Error('offline') },
   })

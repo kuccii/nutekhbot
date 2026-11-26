@@ -152,7 +152,7 @@ test('ensureLanguage leaves a Kinyarwanda reply to a Kinyarwanda message alone',
   assert.equal(called, false)
 })
 
-test('ensureLanguage keeps the original reply when the repair call fails', async () => {
+test('ensureLanguage falls back to English when the repair call fails', async () => {
   const out = await ensureLanguage(SW_REPLY, 'How much is Grow?', {
     chat: async () => { throw new Error('offline') },
   })
