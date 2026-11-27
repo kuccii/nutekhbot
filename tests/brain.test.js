@@ -245,6 +245,19 @@ test('ensureLanguage uses the English fallback when repair leaves a mixed reply'
   assert.equal(calls, 1, 'repair must be attempted exactly once')
 })
 
+test('ensureLanguage falls back to English for the live low-marker Kinyarwanda reply', async () => {
+  const rw = 'Nashatse gusa kongerera ubumenyi mu Kinyarwanda kuko nabonye wayanditse. Niba hari ikindi ushaka kumenya kuri Nutekh, ndahari kugira ngo ngufashe. Ni izihe serivisi zikurikirana?'
+  let calls = 0
+  const out = await ensureLanguage(rw, 'Why did you shift to kinyarwanda', {
+    defaultLang: 'en',
+    minRepairChars: 12,
+    short: true,
+    chat: async () => { calls++; return rw },
+  })
+  assert.equal(out, "I'm here to help with Nutekh's services, packages, and support. What would you like to know?")
+  assert.equal(calls, 1, 'repair must be attempted exactly once')
+})
+
 test('ensureLanguage uses the Kinyarwanda fallback for an explicit request', async () => {
   const en = 'Thank you for your message. I can help with Nutekh services and answer any question you have.'
   let used = null

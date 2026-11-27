@@ -153,6 +153,18 @@ test('needsRepair flags the live Mira\'s Pizza Kinyarwanda reply', () => {
   assert.equal(needsRepair('en', rw), true)
 })
 
+test('needsRepair flags the live low-marker Kinyarwanda "No hello?" reply', () => {
+  const rw = 'Nta ikibazo, ndahari kugirango ngufashe. Ushaka kumenya ibijyanye na serivisi zacu cyangwa hari ikindi kintu?'
+  assert.ok(rw.length >= 12)
+  assert.equal(needsRepair('en', rw, { minChars: 12 }), true)
+})
+
+test('needsRepair flags the live low-marker Kinyarwanda "Why did you shift" reply', () => {
+  const rw = 'Nashatse gusa kongerera ubumenyi mu Kinyarwanda kuko nabonye wayanditse. Niba hari ikindi ushaka kumenya kuri Nutekh, ndahari kugira ngo ngufashe. Ni izihe serivisi zikurikirana?'
+  assert.ok(rw.length >= 12)
+  assert.equal(needsRepair('en', rw, { minChars: 12 }), true)
+})
+
 test('needsRepair flags a foreign tail even when detectLang scores the reply as English', () => {
   const mixed = 'We can help with your website. Muraho, ufite ikibazo?'
   assert.equal(needsRepair('en', mixed, { minChars: 12 }), true)

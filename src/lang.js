@@ -11,7 +11,7 @@ const REPLY_MARKERS = {
   en: [...MARKERS.en],
   fr: [...MARKERS.fr],
   sw: [...MARKERS.sw],
-  rw: [...MARKERS.rw, 'murakaza', 'neza', 'nshobora', 'kugufasha', 'nkeneye', 'dufite', 'dutanga', 'dukora', 'wifuza', 'wifashisha', 'murashobora', 'mwiteguye', 'dushobora', 'gahunda', 'igihe', 'nta', 'amakampani', 'ikoranabuhanga', 'uburyo', 'kwishyura'],
+  rw: [...MARKERS.rw, 'murakaza', 'neza', 'nshobora', 'kugufasha', 'nkeneye', 'dufite', 'dutanga', 'dukora', 'wifuza', 'wifashisha', 'murashobora', 'mwiteguye', 'dushobora', 'gahunda', 'igihe', 'nta', 'amakampani', 'ikoranabuhanga', 'uburyo', 'kwishyura', 'ushaka', 'ikindi'],
 }
 
 const LANG_NAMES = { en: 'English', rw: 'Kinyarwanda', fr: 'French', sw: 'Swahili' }
