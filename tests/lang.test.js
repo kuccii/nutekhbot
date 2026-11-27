@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 
-const { detectLang, needsRepair, LANG_NAMES, confidentLang, englishDefault } = require('../src/lang')
+const { detectLang, needsRepair, LANG_NAMES, confidentLang, englishDefault, replyLanguage } = require('../src/lang')
 
 test('detectLang defaults to English', () => {
   assert.equal(detectLang(''), 'en')
@@ -82,4 +82,89 @@ test('needsRepair honours a lower minChars for short DM replies', () => {
 test('needsRepair applies the 40-character gate before the foreign-token rule', () => {
   assert.equal(needsRepair('en', 'Je vous prie de patienter.'), false)
   assert.equal(needsRepair('en', 'Je vous prie de patienter.', { minChars: 12 }), true)
+})
+
+test('replyLanguage honours explicit "does not understand English" phrases', () => {
+  assert.equal(replyLanguage("I don't understand English"), 'rw')
+  assert.equal(replyLanguage('I do not understand english'), 'rw')
+  assert.equal(replyLanguage('no English please'), 'rw')
+  assert.equal(replyLanguage('simenya icyongereza'), 'rw')
+  assert.equal(replyLanguage('je ne comprends pas anglais'), 'fr')
+  assert.equal(replyLanguage('je ne parle pas anglais'), 'fr')
+  assert.equal(replyLanguage('sielewi Kiingereza'), 'sw')
+  assert.equal(replyLanguage('mbwira mu kinyarwanda'), 'rw')
+})
+
+test('replyLanguage prefers a named target over the phrase language', () => {
+  assert.equal(replyLanguage("I don't understand English, reply in French"), 'fr')
+  assert.equal(replyLanguage('Please speak in Swahili'), 'sw')
+  assert.equal(replyLanguage('jibu kwa kiswahili'), 'sw')
+})
+
+test('replyLanguage resolves a mixed English/French request to the named French target', () => {
+  assert.equal(replyLanguage("I don't understand English, répondez en français"), 'fr')
+})
+
+test('replyLanguage resolves a mixed English/Swahili request to the named Swahili target', () => {
+  assert.equal(replyLanguage("I don't understand English, jibu kwa kiswahili"), 'sw')
+})
+
+test('replyLanguage resolves a standalone French named-target phrase', () => {
+  assert.equal(replyLanguage('répondez en français'), 'fr')
+})
+
+test('replyLanguage resolves a standalone Swahili named-target phrase', () => {
+  assert.equal(replyLanguage('jibu kwa kiswahili'), 'sw')
+})
+
+test('replyLanguage resolves the reply|speak|write named-target forms', () => {
+  assert.equal(replyLanguage('Please reply in Kinyarwanda'), 'rw')
+  assert.equal(replyLanguage('write in French'), 'fr')
+  assert.equal(replyLanguage('Please speak in Swahili'), 'sw')
+})
+
+test('replyLanguage honours a typographic apostrophe in an English disclaimer', () => {
+  assert.equal(replyLanguage('I don’t understand English'), 'rw')
+})
+
+test('replyLanguage uses confident detection before the call-site hint', () => {
+  assert.equal(replyLanguage('Muraho, igiciro cya Grow ni angahe? Murakoze'), 'rw')
+  assert.equal(replyLanguage('Habari, bei ya Grow ni ngapi? Asante sana'), 'sw')
+  assert.equal(replyLanguage('How much does the Grow package cost?'), 'en')
+  assert.equal(replyLanguage('Muraho, ndashaka website', { defaultLang: 'en' }), 'rw')
+})
+
+test('replyLanguage falls back to the hint, then to English', () => {
+  assert.equal(replyLanguage('Bonjour', { defaultLang: 'fr' }), 'fr')
+  assert.equal(replyLanguage('hello', { defaultLang: 'de' }), 'en')
+  assert.equal(replyLanguage('Restaurant'), 'en')
+  assert.equal(replyLanguage('👍🏽'), 'en')
+})
+
+test('needsRepair flags the live Kinyarwanda "Restaurant" reply', () => {
+  const rw = 'Turi kumwe! Dufite igisubizo cyiza ku ruhande rwa restaurant yawe. Ufite ibikoresho iki gihe wifashisha cyangwa ukaba ufite gahunda yo gukoresha ibindi?'
+  assert.ok(rw.length >= 40)
+  assert.equal(needsRepair('en', rw), true)
+})
+
+test('needsRepair flags the live Mira\'s Pizza Kinyarwanda reply', () => {
+  const rw = "Nta kibazo! Iyo mwiteguye, murashobora kutwandikira. Ni gute dushobora kubafasha mu gihe mugitegura?"
+  assert.ok(rw.length >= 40)
+  assert.equal(needsRepair('en', rw), true)
+})
+
+test('needsRepair flags a foreign tail even when detectLang scores the reply as English', () => {
+  const mixed = 'We can help with your website. Muraho, ufite ikibazo?'
+  assert.equal(needsRepair('en', mixed, { minChars: 12 }), true)
+})
+
+test('needsRepair ignores neutral brand and product names', () => {
+  const rw = 'Murakoze! Nshobora kugufasha ku serivisi za Nutekh. WhatsApp, AI, Grow, ImaliCloud, Hresa, VUKA, CRM na websites birahari. Ufite ikibazo runaka?'
+  assert.equal(needsRepair('rw', rw), false)
+  assert.equal(needsRepair('en', 'We use WhatsApp, AI and Grow with ImaliCloud, Hresa, VUKA, CRM and websites.'), false)
+})
+
+test('needsRepair flags an English reply to a non-English expectation', () => {
+  assert.equal(needsRepair('rw', 'We can help with a clear, fast website. What type of business do you run?'), true)
+  assert.equal(needsRepair('fr', 'Habari, bei ya Grow ni ngapi? Asante sana kwa swali lako zuri.'), true)
 })

@@ -5,6 +5,15 @@ const MARKERS = {
   sw: ['habari', 'jambo', 'mambo', 'karibu', 'asante', 'ndiyo', 'hapana', 'naomba', 'bei', 'gani', 'ngapi', 'vipi', 'nzuri', 'sana', 'ninataka', 'tunataka', 'pesa', 'shilingi'],
 }
 
+// Reply-side markers are broader than the customer-side MARKERS so a reply that
+// silently switches language is caught even when detectLang still says 'en'.
+const REPLY_MARKERS = {
+  en: [...MARKERS.en],
+  fr: [...MARKERS.fr],
+  sw: [...MARKERS.sw],
+  rw: [...MARKERS.rw, 'murakaza', 'neza', 'nshobora', 'kugufasha', 'nkeneye', 'dufite', 'dutanga', 'dukora', 'wifuza', 'wifashisha', 'murashobora', 'mwiteguye', 'dushobora', 'gahunda', 'igihe', 'nta', 'amakampani', 'ikoranabuhanga', 'uburyo', 'kwishyura'],
+}
+
 const LANG_NAMES = { en: 'English', rw: 'Kinyarwanda', fr: 'French', sw: 'Swahili' }
 const MIN_SCORE = 2
 const MIN_REPAIR_CHARS = 40
@@ -67,12 +76,54 @@ function englishDefault(text) {
   return null
 }
 
+// Explicit requests beat heuristics. A named target in any matching phrase
+// wins over the fallback language of an earlier, target-free phrase family.
+const EXPLICIT_PHRASES = [
+  { re: /\b(?:please\s+)?(?:reply|speak|write)\s+(?:in\s+)?(kinyarwanda|french|swahili)\b/i, fallback: 'rw' },
+  { re: /\bi\s+(?:don'?t|do not)\s+(?:understand|speak)\s+english\b/i, fallback: 'rw' },
+  { re: /\bno\s+english\s+please\b/i, fallback: 'rw' },
+  { re: /\b(?:simenya|sindamenya|ntamenya)\s+icyongereza\b/i, fallback: 'rw' },
+  { re: /\bmbwira\s+mu\s+(kinyarwanda)\b/i, fallback: 'rw' },
+  { re: /\bje\s+ne\s+comprends\s+pas\s+(?:l')?anglais\b/i, fallback: 'fr' },
+  { re: /\bje\s+ne\s+parle\s+pas\s+anglais\b/i, fallback: 'fr' },
+  { re: /\brépondez\s+en\s+(français)\b/i, fallback: 'fr' },
+  { re: /\b(?:sielewi|sijui)\s+kiingereza\b/i, fallback: 'sw' },
+  { re: /\bsina\s+uelewa\s+wa\s+kiingereza\b/i, fallback: 'sw' },
+  { re: /\bjibu\s+kwa\s+(kiswahili)\b/i, fallback: 'sw' },
+]
+
+const NAMED_TARGETS = { kinyarwanda: 'rw', french: 'fr', français: 'fr', swahili: 'sw', kiswahili: 'sw' }
+const REPLY_LANGS = ['en', 'rw', 'fr', 'sw']
+
+function replyLanguage(customerText, opts = {}) {
+  // Smart quotes are common on phones; the explicit phrases use ASCII apostrophes.
+  const text = String(customerText || '').replace(/\u2019/g, "'")
+  let fallback = null
+  for (const entry of EXPLICIT_PHRASES) {
+    const match = entry.re.exec(text)
+    if (!match) continue
+    const target = NAMED_TARGETS[match[1]?.toLowerCase()]
+    if (target) return target
+    if (fallback === null) fallback = entry.fallback
+  }
+  if (fallback !== null) return fallback
+  const confident = confidentLang(customerText)
+  if (confident) return confident
+  const hint = opts.defaultLang
+  return REPLY_LANGS.includes(hint) ? hint : 'en'
+}
+
 function needsRepair(expected, replyText, opts = {}) {
   const body = String(replyText || '')
   const min = opts.minChars ?? MIN_REPAIR_CHARS
   if (body.length < min) return false
   if (expected === 'en' && FOREIGN_TOKEN_RE.test(body)) return true
+  if (expected === 'en' && ['rw', 'fr', 'sw'].some((lang) => score(body, REPLY_MARKERS[lang]) >= 2)) return true
+  if (expected !== 'en') {
+    if (score(body, REPLY_MARKERS.en) >= 2) return true
+    if (['rw', 'fr', 'sw'].some((lang) => lang !== expected && score(body, REPLY_MARKERS[lang]) >= 2)) return true
+  }
   return detectLang(body) !== expected
 }
 
-module.exports = { detectLang, confidentLang, needsRepair, englishDefault, LANG_NAMES }
+module.exports = { detectLang, confidentLang, needsRepair, englishDefault, LANG_NAMES, replyLanguage }

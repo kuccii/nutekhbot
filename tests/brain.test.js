@@ -152,11 +152,11 @@ test('ensureLanguage leaves a Kinyarwanda reply to a Kinyarwanda message alone',
   assert.equal(called, false)
 })
 
-test('ensureLanguage keeps the original reply when the repair call fails', async () => {
+test('ensureLanguage falls back to English when the repair call fails', async () => {
   const out = await ensureLanguage(SW_REPLY, 'How much is Grow?', {
     chat: async () => { throw new Error('offline') },
   })
-  assert.equal(out, SW_REPLY)
+  assert.equal(out, "I'm here to help with Nutekh's services, packages, and support. What would you like to know?")
 })
 
 test('ensureLanguage is a no-op when the guard is disabled', async () => {
@@ -169,10 +169,20 @@ test('ensureLanguage is a no-op when the guard is disabled', async () => {
   assert.equal(called, false)
 })
 
-test('ensureLanguage leaves a correct reply alone for a short ambiguous message', async () => {
-  const fr = 'Le pack Grow coûte RWF 2M. Voulez-vous réserver un audit gratuit avec notre équipe ?'
-  let called = false
+test('ensureLanguage repairs a French reply to English for a short ambiguous message', async () => {
+  const fr = 'Bonjour ! Le pack Grow coûte RWF 2M. Vous pouvez réserver un audit gratuit avec notre équipe.'
+  let used = null
   const out = await ensureLanguage(fr, 'Combien?', {
+    chat: async (messages) => { used = messages; return 'Grow starts at RWF 2M. Shall I book the free audit?' },
+  })
+  assert.match(out, /Grow starts at RWF 2M/)
+  assert.match(used[0].content, /English/)
+})
+
+test('ensureLanguage leaves a French reply alone for a confidently French message', async () => {
+  const fr = 'Bonjour ! Le pack Grow coûte RWF 2M. Vous pouvez réserver un audit gratuit avec notre équipe.'
+  let called = false
+  const out = await ensureLanguage(fr, 'Bonjour, combien ?', {
     chat: async () => { called = true; return 'x' },
   })
   assert.equal(out, fr)
@@ -223,4 +233,24 @@ test('ensureLanguage keeps the group repair defaults when DM options are absent'
   })
   assert.equal(short, 'Ndio, naelewa.')
   assert.equal(called, false, 'the default 40-character repair gate must still apply')
+})
+
+test('ensureLanguage uses the English fallback when repair leaves a mixed reply', async () => {
+  const mixed = 'We can help with your website. Muraho, ufite ikibazo? and we can also help with more.'
+  let calls = 0
+  const out = await ensureLanguage(mixed, 'Restaurant', {
+    chat: async () => { calls++; return mixed },
+  })
+  assert.equal(out, "I'm here to help with Nutekh's services, packages, and support. What would you like to know?")
+  assert.equal(calls, 1, 'repair must be attempted exactly once')
+})
+
+test('ensureLanguage uses the Kinyarwanda fallback for an explicit request', async () => {
+  const en = 'Thank you for your message. I can help with Nutekh services and answer any question you have.'
+  let used = null
+  const out = await ensureLanguage(en, 'simenya icyongereza', {
+    chat: async (messages) => { used = messages; return en },
+  })
+  assert.equal(out, 'Nshobora kugufasha ku serivisi za Nutekh. Ufite ikibazo runaka?')
+  assert.match(used[0].content, /Kinyarwanda/)
 })

@@ -2,7 +2,7 @@ const { chat, chatJSON } = require('./llm')
 const memory = require('./memory')
 const { embedQuery } = require('./embed')
 const { cleanReply, stripLeadingIntro } = require('./sanitize')
-const { confidentLang, needsRepair, LANG_NAMES, englishDefault } = require('./lang')
+const { replyLanguage, needsRepair, LANG_NAMES, englishDefault } = require('./lang')
 const { guardDMReply } = require('./replyguard')
 const knowledge = require('./knowledge')
 const { isFirstContactGreeting, greetingLanguage, FIRST_CONTACT_GREETING } = require('./greeting')
@@ -10,6 +10,12 @@ const { isFirstContactGreeting, greetingLanguage, FIRST_CONTACT_GREETING } = req
 const MAX_HISTORY = 10
 const MAX_KNOWLEDGE = 8
 const DM_FALLBACK = "I'm here to help with Nutekh's services, packages, and support. What would you like to know?"
+const LANG_FALLBACKS = {
+  en: DM_FALLBACK,
+  rw: 'Nshobora kugufasha ku serivisi za Nutekh. Ufite ikibazo runaka?',
+  fr: 'Je peux vous aider avec les services de Nutekh. Que souhaitez-vous savoir ?',
+  sw: 'Ninaweza kukusaidia na huduma za Nutekh. Unataka kujua nini?',
+}
 
 const PERSONA = `You are *Nutekh Assistant*, the official WhatsApp assistant for Nutekh — a digital transformation agency in Kigali, Rwanda, working across East Africa.
 
@@ -285,10 +291,11 @@ async function repairLanguage(text, lang, chatFn, short = false) {
 
 async function ensureLanguage(reply, customerText, opts = {}) {
   if (opts.langGuard === false) return reply
-  const expected = confidentLang(customerText) || opts.defaultLang || null
-  if (!expected) return reply            // customer language ambiguous — trust the model's mirror
+  const expected = replyLanguage(customerText, opts)
   if (!needsRepair(expected, reply, { minChars: opts.minRepairChars })) return reply
-  return repairLanguage(reply, expected, opts.chat || chat, opts.short)
+  const repaired = await repairLanguage(reply, expected, opts.chat || chat, opts.short)
+  if (!needsRepair(expected, repaired, { minChars: opts.minRepairChars })) return repaired
+  return LANG_FALLBACKS[expected] || DM_FALLBACK
 }
 
 async function answerDM(text, history = [], notes = '', opts = {}) {
